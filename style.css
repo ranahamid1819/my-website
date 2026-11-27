@@ -1008,3 +1008,27 @@ details p{color:var(--mut)}
 .fz-soon h2{margin:0 0 12px}
 .fz-soon p{margin:16px auto 0;max-width:48ch;color:var(--mut);line-height:1.65}
 #paneStock.nokey>*:not(#fzSoon){display:none!important}
+
+/* ---- Your limits ---- */
+.mlreset{border:0;background:none;color:var(--ac);font:600 .8rem var(--fb);cursor:pointer;padding:2px 4px}
+.mlreset:hover{text-decoration:underline}
+.mlim{display:grid;gap:10px;margin-top:8px}
+.mlr{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--bd);border-radius:12px;background:var(--surface2)}
+.mll{display:flex;flex-direction:column;font-size:.86rem;font-weight:600;line-height:1.3}
+.mll small{font-weight:500;font-size:.74rem;color:var(--mut)}
+.mlv{display:flex;align-items:center;gap:6px;flex:none}
+.mlv em{font-style:normal;font-size:.76rem;color:var(--mut)}
+.mst{display:inline-flex;align-items:center;border:1px solid var(--bd);border-radius:9px;background:var(--surface);overflow:hidden}
+.mst button{width:26px;height:30px;border:0;background:none;color:var(--tx);font:600 1rem var(--fb);cursor:pointer;line-height:1}
+.mst button:hover{background:var(--ac-s);color:var(--ac)}
+.mst input{width:34px;height:30px;border:0;border-left:1px solid var(--bd);border-right:1px solid var(--bd);background:none;color:var(--tx);text-align:center;font:600 .88rem var(--fb);-moz-appearance:textfield;appearance:textfield}
+.mst input::-webkit-outer-spin-button,.mst input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.mst input:focus{outline:2px solid var(--ac);outline-offset:-2px}
+
+.mlr{flex-wrap:wrap;gap:8px}
+.mll{flex-direction:row;align-items:baseline;justify-content:space-between;width:100%;gap:8px}
+.mll small{white-space:nowrap}
+.mlv{width:100%;justify-content:flex-start}
+.mlv .mst{flex:1;justify-content:space-between}
+.mlv .mst input{flex:1;width:auto;min-width:30px}
+.mst button{width:32px}

@@ -142,7 +142,12 @@
   <div class="mps">
     <span class="mlbl">File names</span>
     <label class="mtg"><span>Auto rename files</span><input type="checkbox" id="oRn" checked><i></i></label>
-    <small class="mhint">Every file gets a clean, easy-to-search name. Downloads and the CSV use it.</small>
+    <small class="mhint">Every file gets a clean, easy-to-search name when you download it. The CSV keeps your original file names.</small>
+  </div>
+  <div class="mps" id="mLimBox">
+    <div class="mrow"><span class="mlbl" id="mLimTitle">Your limits</span><button type="button" class="mlreset" id="mLimReset">Reset</button></div>
+    <div class="mlim" id="mLim"></div>
+    <small class="mhint" id="mLimHint">Choose your own numbers inside the platform rules. They are used the next time you press Generate.</small>
   </div>
   <div hidden>
   <div class="mps">
@@ -1109,6 +1114,11 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
       limits:'Limits: title 7 to 10 words (35 to 100 characters), 24 to 28 keywords.'}
   };
   var ORDER=['adobe','shutter','freepik'];
+  // Platform rules (outer bounds). Users choose their own numbers inside these.
+  var BOUND={adobe:{w:[8,10],c:[40,70],k:[25,30]},shutter:{w:[14,18],c:[80,150],k:[28,32]},freepik:{w:[7,10],c:[35,100],k:[24,28]}};
+  var DEF={};ORDER.forEach(function(k){var b=BOUND[k];DEF[k]={wmin:b.w[0],wmax:b.w[1],cmax:b.c[1],kmin:b.k[0],kmax:b.k[1]}});
+  var LIM=JSON.parse(JSON.stringify(DEF));
+  try{var sv=JSON.parse(localStorage.getItem('tg-limits')||'null');if(sv)ORDER.forEach(function(k){if(sv[k])for(var f in DEF[k])if(typeof sv[k][f]==='number')LIM[k][f]=sv[k][f]})}catch(e){}
   var SV='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
   var PIC={
     adobe:SV+'<rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7 16 3.2-6.5L13.4 16"/><path d="M8.2 13.6h4"/><path d="M16 8v8"/></svg>',
@@ -1121,6 +1131,18 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
 
   /* ---- workspace controls: length sliders + options ---- */
   var tl={adobe:70,shutter:150,freepik:100};
+  function clampLim(k){
+    var b=BOUND[k],L=LIM[k],cl=function(v,a,z){v=Math.round(+v);if(isNaN(v))v=a;return Math.max(a,Math.min(z,v))};
+    L.wmin=cl(L.wmin,b.w[0],b.w[1]);L.wmax=cl(L.wmax,b.w[0],b.w[1]);if(L.wmin>L.wmax)L.wmax=L.wmin;
+    L.kmin=cl(L.kmin,b.k[0],b.k[1]);L.kmax=cl(L.kmax,b.k[0],b.k[1]);if(L.kmin>L.kmax)L.kmax=L.kmin;
+    L.cmax=cl(L.cmax,b.c[0],b.c[1]);
+  }
+  function useLim(k){
+    clampLim(k);var p=PL[k],L=LIM[k];
+    p.words=[L.wmin,L.wmax];p.kw=[L.kmin,L.kmax,L.kmax];kwN[k]=L.kmax;tl[k]=L.cmax;
+  }
+  function saveLim(){try{localStorage.setItem('tg-limits',JSON.stringify(LIM))}catch(e){}}
+  ORDER.forEach(useLim);
   function TL(pk){var p=PL[pk],tf=p.title||p.desc;return Math.min(tl[pk],tf[0])}
   function getOpt(){
     function on(k){return $('o'+k).checked}
@@ -1198,7 +1220,7 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
     });
   }
   function applyPlat(){
-    var p=PL[plat];drawPlats();
+    var p=PL[plat];drawPlats();drawLim();
     $('mLimits').textContent=p.limits+' You can edit every field before exporting.';
     var inp=$('mKw');inp.min=p.kw[0];inp.max=p.kw[1];inp.value=kwN[plat];
     $('mKwHint').textContent='Between '+p.kw[0]+' and '+p.kw[1]+' for this platform.';syncSl();
@@ -1206,6 +1228,36 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
     items.forEach(function(it){body(it);head(it)});
     counters();
   }
+  function drawLim(){
+    var k=plat,b=BOUND[k],L=LIM[k],p=PL[k],box=$('mLim'),lbl=p.title?'Title':'Description';
+    $('mLimTitle').textContent='Your limits for '+p.name;
+    function step(f,a,z){
+      return '<span class="mst"><button type="button" data-f="'+f+'" data-d="-1" aria-label="Decrease">−</button><input type="number" inputmode="numeric" data-f="'+f+'" min="'+a+'" max="'+z+'" value="'+L[f]+'"><button type="button" data-f="'+f+'" data-d="1" aria-label="Increase">+</button></span>';
+    }
+    box.innerHTML=
+      '<div class="mlr"><span class="mll">'+lbl+' words<small>Rule: '+b.w[0]+'–'+b.w[1]+'</small></span><span class="mlv">'+step('wmin',b.w[0],b.w[1])+'<em>to</em>'+step('wmax',b.w[0],b.w[1])+'</span></div>'+
+      '<div class="mlr"><span class="mll">'+lbl+' characters<small>Rule: max '+b.c[1]+'</small></span><span class="mlv"><em>up to</em>'+step('cmax',b.c[0],b.c[1])+'</span></div>'+
+      '<div class="mlr"><span class="mll">Keywords<small>Rule: '+b.k[0]+'–'+b.k[1]+'</small></span><span class="mlv">'+step('kmin',b.k[0],b.k[1])+'<em>to</em>'+step('kmax',b.k[0],b.k[1])+'</span></div>';
+    var same=JSON.stringify(L)===JSON.stringify(DEF[k]);$('mLimReset').hidden=same;
+  }
+  function limChanged(){useLim(plat);saveLim();drawLim();syncSl();$('mLimits').textContent=PL[plat].limits+' You can edit every field before exporting.';items.forEach(function(it){body(it)})}
+  $('mLim').addEventListener('click',function(e){
+    var bt=e.target.closest('button[data-f]');if(!bt||running)return;
+    var f=bt.dataset.f;LIM[plat][f]+=(+bt.dataset.d);
+    if(f==='wmin'&&LIM[plat].wmin>LIM[plat].wmax)LIM[plat].wmax=LIM[plat].wmin;
+    if(f==='wmax'&&LIM[plat].wmax<LIM[plat].wmin)LIM[plat].wmin=LIM[plat].wmax;
+    if(f==='kmin'&&LIM[plat].kmin>LIM[plat].kmax)LIM[plat].kmax=LIM[plat].kmin;
+    if(f==='kmax'&&LIM[plat].kmax<LIM[plat].kmin)LIM[plat].kmin=LIM[plat].kmax;
+    limChanged();var again=$('mLim').querySelector('button[data-f="'+f+'"][data-d="'+bt.dataset.d+'"]');if(again)again.focus();
+  });
+  $('mLim').addEventListener('change',function(e){
+    var i=e.target.closest('input[data-f]');if(!i)return;
+    var f=i.dataset.f;LIM[plat][f]=parseInt(i.value,10);
+    if(f==='wmax'&&LIM[plat].wmax<LIM[plat].wmin)LIM[plat].wmin=LIM[plat].wmax;
+    if(f==='kmax'&&LIM[plat].kmax<LIM[plat].kmin)LIM[plat].kmin=LIM[plat].kmax;
+    limChanged();
+  });
+  $('mLimReset').addEventListener('click',function(){LIM[plat]=JSON.parse(JSON.stringify(DEF[plat]));limChanged()});
   $('mKw').addEventListener('change',function(){
     var p=PL[plat],v=parseInt(this.value,10);if(isNaN(v))v=p.kw[2];
     v=Math.max(p.kw[0],Math.min(p.kw[1],v));kwN[plat]=v;this.value=v;
@@ -1226,7 +1278,6 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
     var skipped=0,dup=0,n=0;
     Array.prototype.forEach.call(list||[],function(f){
       if(!OKF.test(f.name)){skipped++;return}
-      if(items.some(function(x){return x.name===f.name&&x.file.size===f.size})){dup++;return}
       var ext=(f.name.match(/\.[^.]+$/)||[''])[0];
       var vec=C.isVector(f.name);
       var it={id:++seq,file:f,name:f.name,ext:ext,url:vec?'':URL.createObjectURL(f),video:ext.toLowerCase()==='.mp4',vector:vec,data:{},err:{},busy:false,note:'',frames:null};
@@ -1382,7 +1433,7 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
     }
     if(p.fields.indexOf('description')>-1){
       json='{"description":"...",'+json.slice(1);
-      f.push('description: one natural, meaningful, descriptive sentence of '+p.words[0]+' to '+p.words[1]+' words and never more than '+L+' characters including spaces and punctuation. Aim for 15 to 17 words and about '+Math.round(L*.88)+' to '+L+' characters. If the word target and the character limit conflict, the character limit and factual accuracy always win, so use short words. Describe the real visible content. No keyword lists, no repeated phrases, no promotional language, no brand names, trademarks or real people names.');
+      f.push('description: one natural, meaningful, descriptive sentence of '+p.words[0]+' to '+p.words[1]+' words and never more than '+L+' characters including spaces and punctuation. Aim for '+Math.max(p.words[0],p.words[1]-2)+' to '+p.words[1]+' words and about '+Math.round(L*.88)+' to '+L+' characters. If the word target and the character limit conflict, the character limit and factual accuracy always win, so use short words. Describe the real visible content. No keyword lists, no repeated phrases, no promotional language, no brand names, trademarks or real people names.');
     }
     f.push('keywords: between '+p.kw[0]+' and '+n+' items (aim for '+n+' when they are all accurate; never add a keyword only to fill the count). Lowercase English. Single words or meaningful two-word compounds. Order them by descending relevance: the first 10 must be the strongest and most accurate subjects, objects and concepts'+(pk==='adobe'?' because Adobe Stock gives the first 10 keywords the most search weight':'')+'. Then add accurate actions, visual characteristics, colors, styles, moods and relevant broader concepts. No duplicates, no irrelevant, trending, misleading or exaggerated terms, no brand names, trademarks, copyrighted names or people names. Never invent objects, colors, locations, actions or concepts.');
     if(p.cats){
@@ -1405,32 +1456,57 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
     return null;
   }
   function cutWords(s,max){if(s.length<=max)return s;var c=s.slice(0,max),i=c.lastIndexOf(' ');return(i>max*.6?c.slice(0,i):c).replace(/[\s,;:\-–]+$/,'')}
+  var STOPW=/(\s+(and|or|with|of|the|a|an|in|on|at|to|for|by|from|against|over|under|near|into|as|while|its|their))+$/i;
   function fix(pk,o,n){
-    var p=PL[pk],d={},warn='';
+    // returns {data, hard:[problems that break the rules], soft:[small problems]} or {msg}
+    var p=PL[pk],d={},hard=[],soft=[];
     if(!o||typeof o!=='object')return{msg:'The answer was not valid JSON.'};
     function str(v){return String(v==null?'':v).replace(/\s+/g,' ').trim()}
     function chk(label,t,max,min){
       var w=wc(t);
-      if(w<p.words[0]||w>p.words[1])warn+=' The '+label+' has '+w+' words; it must have '+p.words[0]+' to '+p.words[1]+' words.';
-      if(t.length>max)warn+=' The '+label+' has '+t.length+' characters; the limit is '+max+'.';
-      if(min&&t.length<min)warn+=' The '+label+' has '+t.length+' characters; it needs at least '+min+'.';
+      if(w>p.words[1])hard.push({k:'long',m:'The '+label+' has '+w+' words; it must have '+p.words[0]+' to '+p.words[1]+' words.'});
+      if(w<p.words[0])hard.push({k:'short',m:'The '+label+' has '+w+' words; it must have '+p.words[0]+' to '+p.words[1]+' words.'});
+      if(t.length>max)hard.push({k:'chars',m:'The '+label+' has '+t.length+' characters; the limit is '+max+'.'});
+      if(min&&t.length<min)hard.push({k:'minc',m:'The '+label+' has '+t.length+' characters; it needs at least '+min+'.'});
     }
-    if(p.fields.indexOf('title')>-1){var t=str(o.title).replace(/[.。]+$/,'');if(!t)return{msg:'The title was empty.'};chk('title',t,room(pk),p.minc);d.title=mainTxt(t,pk,p.title[0])}
-    if(p.fields.indexOf('description')>-1){var s=str(o.description);if(!s)return{msg:'The description was empty.'};chk('description',s,room(pk),0);d.description=mainTxt(s,pk,p.desc[0])}
+    var f=p.fields.indexOf('title')>-1?'title':'description',src=str(o[f]).replace(/[.。]+$/,'');
+    if(!src)return{msg:'The '+f+' was empty.'};
+    d[f]=mainTxt(src,pk,(p.title||p.desc)[0]);
+    chk(f,d[f],TL(pk),p.minc);
     var arr=Array.isArray(o.keywords)?o.keywords:String(o.keywords||'').split(','),seen={};
     d.keywords=arr.map(function(k){return str(k).toLowerCase().replace(/^[#\-\s]+|[,.;]+$/g,'')}).filter(function(k){if(k.length<2||k.length>40||seen[k])return false;seen[k]=1;return true});
     d.keywords=applyKw(d.keywords,n);
-    if(d.keywords.length<p.kw[0])return{msg:'Only '+d.keywords.length+' keywords came back. At least '+p.kw[0]+' are needed; give '+p.kw[0]+' to '+n+'.'};
+    if(d.keywords.length<p.kw[0])hard.push({k:'kw',m:'Only '+d.keywords.length+' keywords came back. At least '+p.kw[0]+' are needed; give exactly '+n+'.'});
+    else if(d.keywords.length<n)soft.push('Only '+d.keywords.length+' keywords came back; give exactly '+n+'.');
     if(p.cats){
       var raw=Array.isArray(o.categories)?o.categories:(o.category?[o.category]:[]),lc={};
       p.cats.forEach(function(c){lc[c.toLowerCase()]=c});
       d.categories=raw.map(function(c){return lc[str(c).toLowerCase()]}).filter(function(c,i,r){return c&&r.indexOf(c)===i}).slice(0,p.catMax);
-      if(!d.categories.length)warn+=' Category must be one exact name from the list.';
+      if(!d.categories.length)soft.push('Category must be one exact name from the list.');
     }
-    return{data:d,warn:warn.trim()};
+    return{data:d,hard:hard,soft:soft};
   }
-  function callG(it,sys,text,fr){
-    return C.callAI({sys:sys,text:text,frames:fr,json:true,temperature:.5,signal:ctrlM.signal,isStopped:function(){return stopM},onNote:function(n){it.note=n;head(it)}});
+  // shorten a too-long title/description to the word limit without leaving a dangling small word
+  function trimToWords(t,max){var w=t.split(/\s+/);if(w.length<=max)return t;return w.slice(0,max).join(' ').replace(/[\s,;:\-–]+$/,'').replace(STOPW,'')}
+  // how similar is this result to metadata that other files already have?
+  function norm(t){return String(t||'').toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim()}
+  function overlap(a,b){var A={},n=0,c=0;a.forEach(function(x){A[x]=1});b.forEach(function(x){if(A[x])c++});n=Math.max(a.length,b.length)||1;return c/n}
+  function sameness(pk,d,others){
+    var f=d.title!=null?'title':'description',me=norm(d[f]),mw=me.split(' '),hard=[],soft=[];
+    var AK={};getOpt().ak.forEach(function(k){AK[k]=1});var own=function(l){return(l||[]).filter(function(k){return !AK[k]})};
+    others.forEach(function(x){
+      var o=x.data[pk];if(!o)return;
+      var ot=norm(o.title!=null?o.title:o.description);
+      if(ot===me)hard.push('Your '+f+' is exactly the same as another file\'s '+f+' ("'+(o.title||o.description)+'"). Write a clearly different one.');
+      else if(overlap(mw,ot.split(' '))>=.8)soft.push('Your '+f+' uses almost the same words as "'+(o.title||o.description)+'". Use different wording.');
+      var dk=own(d.keywords),ok2=own(o.keywords),k1=dk.join('|'),k2=ok2.join('|');
+      if(k1===k2)hard.push('Your keyword list is exactly the same as another file\'s. Choose a different selection and order.');
+      else if(dk.slice(0,10).join('|')===ok2.slice(0,10).join('|'))soft.push('Your first 10 keywords are in exactly the same order as another file. Change the selection and order.');
+    });
+    return{hard:hard.slice(0,2),soft:soft.slice(0,2)};
+  }
+  function callG(it,sys,text,fr,temp){
+    return C.callAI({sys:sys,text:text,frames:fr,json:true,temperature:temp||.5,signal:ctrlM.signal,isStopped:function(){return stopM},onNote:function(n){it.note=n;head(it)}});
   }
   /* ---- automatic file names ---- */
   function autoRn(){var c=$('oRn');return !c||c.checked}
@@ -1461,28 +1537,51 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
   async function makeOne(it,pk){
     if(it.vector){if(it.vecP)await it.vecP;if(it.vecErr)throw new Error(it.vecErr)}
     if(!it.frames)it.frames=await C.frames(it);
-    var n=kwN[pk],wantName=autoRn()&&!it.newName,sys=systemPrompt(pk,n,wantName),fb='',extra=($('mNote').value||'').trim(),best=null;
-    for(var i=0;i<3;i++){
+    var p=PL[pk],n=kwN[pk],wantName=autoRn()&&!it.newName,sys=systemPrompt(pk,n,wantName),fb='',extra=($('mNote').value||'').trim(),best=null,softName=null;
+    var others=items.filter(function(x){return x!==it&&!x.removed&&x.data[pk]});
+    var twin=items.some(function(x){return x!==it&&!x.removed&&x.file.size===it.file.size&&(x.name===it.name||x.file.lastModified===it.file.lastModified)});
+    var fld=p.title?'Titles':'Descriptions',TRIES=5;
+    for(var i=0;i<TRIES;i++){
       var t='Asset: '+(it.video?'video, 3 frames in time order':(it.vector?'vector illustration from an Adobe Illustrator '+it.vec.kind+' file, seen through the preview saved inside it ('+it.vec.source+'). Describe the artwork itself; vector and illustration are fitting keywords when they match':'single image'))+'.';
       if(it.vector&&it.vec.info)t+='\nFacts read from the file (use only if they match the artwork): '+it.vec.info+'.';
       if(wantName&&!it.newName)t+='\nBACKGROUND (measured from the real pixels, always correct): '+it.bg+'\nFile names already used by other files (never repeat or closely copy them):\n'+(prevMeta(it).slice(-40).join('\n')||'(none)');
-      if(extra)t+='\nNotes from the contributor (use them only if they match the picture): '+extra;
+      if(others.length){
+        t+='\n'+fld+' already used for other files in this batch (yours must use clearly different wording, never repeat or closely copy them):\n'+others.slice(-25).map(function(x){var o=x.data[pk];return '- '+(o.title||o.description)}).join('\n');
+        t+='\nFirst keywords already used by other files (use a different selection and order for your first 10 keywords, still accurate):\n'+others.slice(-8).map(function(x){return '- '+x.data[pk].keywords.slice(0,10).join(', ')}).join('\n');
+      }
+      if(twin)t+='\nIMPORTANT: this file shows the same picture as another file in this batch. Give it its own unique metadata: focus on a different accurate angle (other visible details, concepts, uses or mood), use different wording and a different keyword order. Stay 100% accurate.';
+      t+='\nHard rules you must follow exactly: '+(p.title?'title':'description')+' '+p.words[0]+' to '+p.words[1]+' words and at most '+TL(pk)+' characters'+(p.minc?' (at least '+p.minc+')':'')+'; exactly '+n+' keywords.';
+      if(extra)t+='\nNotes from the contributor (follow them when they match the picture): '+extra;
       var O=getOpt();
       if(O.nt.length)t+='\nNever use these words in the title: '+O.nt.join(', ')+'.';
       if(O.nk.length)t+='\nNever use these keywords: '+O.nk.join(', ')+'.';
       if(O.ak.length)t+='\nThese keywords are added separately, do not repeat them: '+O.ak.join(', ')+'.';
-      if(fb)t+='\nYour previous answer was rejected: '+fb+' Fix it.';
-      var o=parseJson(await callG(it,sys,t,it.frames));
+      if(fb)t+='\nYour previous answer was rejected: '+fb+' Fix every point.';
+      var o=parseJson(await callG(it,sys,t,it.frames,twin||others.length?.75:.5));
       if(o&&o.error&&!o.title&&!o.description&&!o.keywords)throw new Error('This file could not be analyzed reliably: '+String(o.error).slice(0,160));
+      var nameFb='';
       if(wantName&&!it.newName&&o&&o.filename){
         var nm=C.repair(C.clean(String(o.filename))),ck=C.checkName(nm,it.bg,prevMeta(it));
-        if(!ck||!ck.hard)it.newName=nm;
+        if(!ck)it.newName=nm;
+        else{if(!ck.hard&&!softName)softName=nm;nameFb=' The filename "'+nm+'" was rejected: '+ck.msg+'.'}
       }
       var r=fix(pk,o,n);
-      if(r.data){if(!r.warn)return r.data;var sc=r.warn.length+(/characters; the limit/.test(r.warn)?1000:0);if(!best||sc<best.sc)best={sc:sc,d:r.data};fb=r.warn}else fb=r.msg;
+      if(!r.data){fb=r.msg+nameFb;continue}
+      var u=sameness(pk,r.data,others);
+      var hard=r.hard.map(function(h){return h.m}).concat(u.hard),soft=r.soft.concat(u.soft);
+      if(!hard.length&&!soft.length){if(!it.newName&&softName)it.newName=softName;return r.data}
+      var sc=hard.length*100+soft.length;
+      if(!best||sc<best.sc)best={sc:sc,d:r.data,r:r,u:u};
+      fb=hard.concat(soft).join(' ')+nameFb;
     }
-    if(best)return best.d;
-    throw new Error('Gemini did not return usable metadata ('+fb+'). Press Generate again.');
+    if(!it.newName&&softName)it.newName=softName;
+    if(best){
+      // last resort: a result that is only too long can be shortened safely to the word limit
+      var only=best.u.hard.length===0&&best.r.hard.length>0&&best.r.hard.every(function(h){return h.k==='long'});
+      if(only){var f=best.d.title!=null?'title':'description',tt=trimToWords(best.d[f],p.words[1]);if(wc(tt)>=p.words[0]&&(!p.minc||tt.length>=p.minc)){best.d[f]=tt;return best.d}}
+      if(best.sc<100)return best.d; // every hard rule is met; only small issues left
+    }
+    throw new Error('The AI could not follow all the rules for this file ('+fb.slice(0,220)+'). Press Generate again.');
   }
 
   /* ---- run ---- */
@@ -1495,7 +1594,7 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
     if(!todo.length){banner(items.some(function(x){return x.vecErr})&&!items.some(function(x){return !x.vecErr&&!x.data[pk]})?'There is nothing to generate: the files that are left could not be read.':'Every file already has '+PL[pk].name+' metadata. Use Regenerate on a file to redo it.','info');return}
     banner('');C.resetRun();running=true;stopM=false;ctrlM=new AbortController();
     todo.forEach(function(it){delete it.err[pk]});counters();
-    var live=ks.filter(function(x){return x.state==='ok'}).length,workers=Math.max(1,Math.min(4,live,todo.length)),idx=0,stopAll=false;
+    var workers=1,idx=0,stopAll=false; // one file at a time, in order
     async function worker(){
       while(!stopAll&&!stopM){
         var it=todo[idx++];if(!it)return;if(it.removed)continue;
@@ -1593,9 +1692,10 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
   }
   function dlCsv(list){
     var pk=plat;if(!list.length)return;
-    var base=list.length===1?baseOf(outName(list[0]))+'-':'';
+    var base=list.length===1?slug(baseOf(list[0].name))+'-':'';
     saveBlob(new Blob([csv(pk,list)],{type:'text/csv;charset=utf-8'}),base+PL[pk].name.toLowerCase().replace(/\s+/g,'-')+'-metadata.csv');
-    banner('CSV saved for '+list.length+' file'+(list.length>1?'s':'')+'.','ok');
+    var cnt={},same=0;list.forEach(function(x){var k=x.name.toLowerCase();cnt[k]=(cnt[k]||0)+1});Object.keys(cnt).forEach(function(k){if(cnt[k]>1)same+=cnt[k]});
+    banner('CSV saved for '+list.length+' file'+(list.length>1?'s':'')+' with your original file names. Upload the same original files to '+PL[pk].name+' and then the CSV.'+(same?' Note: '+same+' files share the same original name, so '+PL[pk].name+' can match only one of them. For those, use Download instead (each gets its own new name and metadata inside).':''),same?'info':'ok');
   }
   // Download All: every file is downloaded on its own (no ZIP), in its own format and with its new name
   $('mDlAll').addEventListener('click',async function(){
@@ -1620,13 +1720,13 @@ document.getElementById("zViewX").addEventListener("click",function(){zv.close()
     var sep=pk==='freepik'?';':',',rows=[];
     if(pk==='adobe'){
       rows.push(['Filename','Title','Keywords','Category','Releases']);
-      list.forEach(function(it){var d=it.data.adobe,c=d.categories&&d.categories[0];rows.push([outName(it),d.title,d.keywords.join(', '),c?ADOBE_CATS.indexOf(c)+1:'',''])});
+      list.forEach(function(it){var d=it.data.adobe,c=d.categories&&d.categories[0];rows.push([it.name,d.title,d.keywords.join(', '),c?ADOBE_CATS.indexOf(c)+1:'',''])});
     }else if(pk==='shutter'){
       rows.push(['Filename','Description','Keywords','Categories','Editorial','Mature content','illustration']);
-      list.forEach(function(it){var d=it.data.shutter;rows.push([outName(it),d.description,d.keywords.join(', '),(d.categories||[]).join(', '),'no','no',(it.vector||ctype==='illustration')?'yes':'no'])});
+      list.forEach(function(it){var d=it.data.shutter;rows.push([it.name,d.description,d.keywords.join(', '),(d.categories||[]).join(', '),'no','no',(it.vector||ctype==='illustration')?'yes':'no'])});
     }else{
       rows.push(['File name','Title','Keywords']);
-      list.forEach(function(it){var d=it.data.freepik;rows.push([outName(it),d.title,d.keywords.join(', ')])});
+      list.forEach(function(it){var d=it.data.freepik;rows.push([it.name,d.title,d.keywords.join(', ')])});
     }
     return rows.map(function(r){return r.map(function(v){return q(v,sep)}).join(sep)}).join('\r\n')+'\r\n';
   }
